@@ -45,6 +45,79 @@
     }
   }
 
+  const runtimeState = {
+    logs: [],
+    courseTitle: '',
+    classId: '',
+    lessonId: '',
+    nextLessonId: '',
+    lessonList: []
+  };
+  let hasLoggedAutoPlay = false;
+
+  function getPageQueryParam(key) {
+    try {
+      return new URLSearchParams(location.search.replace(/&&/g, '&')).get(key) || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function getLessonIdFromUrl(url) {
+    try {
+      return new URL(url, location.href).searchParams.get('id') || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function refreshRuntimeState(extra = {}) {
+    runtimeState.classId = extra.classId || getPageQueryParam('classId') || runtimeState.classId;
+    runtimeState.lessonId = extra.lessonId || getPageQueryParam('id') || runtimeState.lessonId;
+    runtimeState.courseTitle = extra.courseTitle || runtimeState.courseTitle || (document.title || '').split('-')[0].trim();
+    runtimeState.nextLessonId = extra.nextLessonId || runtimeState.nextLessonId;
+    updatePanelUI();
+  }
+
+  function appendLog(message) {
+    const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    runtimeState.logs.unshift(`${time} ${message}`);
+    runtimeState.logs = runtimeState.logs.slice(0, 10);
+    try { console.info('[Class Attender]', message); } catch (_) {}
+    updatePanelUI();
+  }
+
+  function updatePanelUI() {
+    try {
+      const course = document.getElementById('class-attender-course-info');
+      if (course) {
+        const title = runtimeState.courseTitle || '当前课程';
+        const classId = runtimeState.classId || '-';
+        const lessonId = runtimeState.lessonId || '-';
+        const nextLessonId = runtimeState.nextLessonId || '-';
+        course.textContent = `${title} | 课程 ${classId} | 当前 ${lessonId} | 下一 ${nextLessonId}`;
+      }
+
+      const logs = document.getElementById('class-attender-log-list');
+      if (logs) {
+        logs.textContent = '';
+        const entries = runtimeState.logs.length ? runtimeState.logs : ['等待执行日志...'];
+        entries.forEach((entry) => {
+          const item = document.createElement('div');
+          item.textContent = entry;
+          item.style.lineHeight = '1.45';
+          item.style.wordBreak = 'break-all';
+          logs.appendChild(item);
+        });
+      }
+
+      const lessonList = document.getElementById('class-attender-lesson-list');
+      if (lessonList) {
+        lessonList.textContent = runtimeState.lessonList.length ? `目录：${runtimeState.lessonList.join(' -> ')}` : '目录：等待解析';
+      }
+    } catch (_) {}
+  }
+
   const RATE_STORAGE_KEY = 'class_attender_rate';
   function getTargetRate() {
     const v = Number(localStorage.getItem(RATE_STORAGE_KEY) || '2');
@@ -56,6 +129,7 @@
     localStorage.setItem(RATE_STORAGE_KEY, String(r));
     applyRateToAll(r);
     updateRateUI();
+    appendLog(`倍速调整为 ${r.toFixed(2)}x`);
   }
 
   function applyRateToAll(rate) {
@@ -100,13 +174,13 @@
       zIndex: '2147483647',
       background: 'rgba(0,0,0,0.65)',
       color: '#fff',
-      padding: '8px 10px',
+      width: '320px',
+      maxWidth: 'calc(100vw - 32px)',
+      padding: '10px 12px',
       borderRadius: '8px',
       fontSize: '12px',
       userSelect: 'none',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '6px',
+      boxSizing: 'border-box',
       boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
     });
 
@@ -136,6 +210,67 @@
     minus.addEventListener('click', () => setTargetRate(getTargetRate() - 0.25));
     plus.addEventListener('click', () => setTargetRate(getTargetRate() + 0.25));
 
+    const header = document.createElement('div');
+    header.textContent = 'Class Attender';
+    Object.assign(header.style, {
+      fontWeight: '700',
+      fontSize: '13px',
+      marginBottom: '6px'
+    });
+
+    const courseInfo = document.createElement('div');
+    courseInfo.id = 'class-attender-course-info';
+    Object.assign(courseInfo.style, {
+      color: 'rgba(255,255,255,0.82)',
+      marginBottom: '4px',
+      lineHeight: '1.45',
+      wordBreak: 'break-all'
+    });
+
+    const lessonList = document.createElement('div');
+    lessonList.id = 'class-attender-lesson-list';
+    Object.assign(lessonList.style, {
+      color: 'rgba(255,255,255,0.74)',
+      marginBottom: '8px',
+      lineHeight: '1.45',
+      wordBreak: 'break-all',
+      maxHeight: '42px',
+      overflowY: 'auto'
+    });
+
+    const rateRow = document.createElement('div');
+    Object.assign(rateRow.style, {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      marginBottom: '8px'
+    });
+    const rateTitle = document.createElement('span');
+    rateTitle.textContent = '倍速';
+    rateTitle.style.color = 'rgba(255,255,255,0.86)';
+    rateRow.appendChild(rateTitle);
+    rateRow.appendChild(minus);
+    rateRow.appendChild(label);
+    rateRow.appendChild(plus);
+
+    const logTitle = document.createElement('div');
+    logTitle.textContent = '执行日志';
+    Object.assign(logTitle.style, {
+      color: 'rgba(255,255,255,0.86)',
+      margin: '6px 0 4px'
+    });
+
+    const logList = document.createElement('div');
+    logList.id = 'class-attender-log-list';
+    Object.assign(logList.style, {
+      maxHeight: '120px',
+      overflowY: 'auto',
+      padding: '6px',
+      borderRadius: '6px',
+      background: 'rgba(255,255,255,0.1)',
+      color: 'rgba(255,255,255,0.9)'
+    });
+
     // 双击容器重置倍速
     root.addEventListener('dblclick', () => setTargetRate(1));
 
@@ -148,10 +283,15 @@
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
 
-    root.appendChild(minus);
-    root.appendChild(label);
-    root.appendChild(plus);
+    root.appendChild(header);
+    root.appendChild(courseInfo);
+    root.appendChild(lessonList);
+    root.appendChild(rateRow);
+    root.appendChild(logTitle);
+    root.appendChild(logList);
     document.body.appendChild(root);
+    refreshRuntimeState();
+    updatePanelUI();
   }
 
   function bindHotkeys() {
@@ -182,6 +322,10 @@
       video.playbackRate = getTargetRate();
       // 劫持在主世界脚本中实现（learn_mainworld.js），此处不做任何内联注入以避免 CSP
       await video.play();
+      if (!hasLoggedAutoPlay) {
+        appendLog(`自动播放课时 ${runtimeState.lessonId || getPageQueryParam('id') || '-'}`);
+        hasLoggedAutoPlay = true;
+      }
       return true;
     } catch (e) {
       // 若自动播放被策略拦截，继续依赖按钮点击循环
@@ -275,6 +419,9 @@
     const navigateToUrl = (url) => {
       if (!url || url === location.href) return false;
       setNextPending(true);
+      const nextId = getLessonIdFromUrl(url);
+      refreshRuntimeState({ nextLessonId: nextId });
+      appendLog(nextId ? `跳转下一课时 ${nextId}` : `跳转下一课时 ${url}`);
       try { location.href = url; } catch (_) { return false; }
       setTimeout(() => setNextPending(false), 5000);
       return true;
@@ -285,6 +432,9 @@
       if (el.ownerDocument !== document) return navigateToUrl(url);
       if (isDisabled(el) || !isVisible(el)) return false;
       setNextPending(true);
+      const nextId = getLessonIdFromUrl(url);
+      refreshRuntimeState({ nextLessonId: nextId });
+      appendLog(nextId ? `点击下一课时入口 ${nextId}` : '点击下一节入口');
       const before = location.href;
       try { el.scrollIntoView({ block: 'center', inline: 'center' }); } catch (_) {}
       try { el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, view: window })); } catch (_) {}
@@ -336,6 +486,11 @@
         .map(el => ({ el, url: extractCourseLearnUrl(el) }))
         .filter(item => item.url && (!requireVisible || isVisible(item.el)) && !isDisabled(item.el));
       if (items.length === 0) return null;
+      const lessonIds = Array.from(new Set(items.map(item => getLessonIdFromUrl(item.url)).filter(Boolean)));
+      if (lessonIds.length) {
+        runtimeState.lessonList = lessonIds;
+        updatePanelUI();
+      }
 
       let index = -1;
       if (currentId) {
@@ -357,6 +512,7 @@
     const findNextFromCourseDetail = async () => {
       const classId = getQueryParam('classId');
       if (!classId) return null;
+      appendLog(`读取课程详情 ${classId}`);
       try {
         const res = await fetch(`${location.origin}/zzpx/courseDetail/${classId}`, {
           credentials: 'include',
@@ -365,7 +521,15 @@
         if (!res.ok) return null;
         const html = await res.text();
         const doc = new DOMParser().parseFromString(html, 'text/html');
-        return findNextByCourseLinks(doc, false);
+        const title = (doc.querySelector('.u-coursetitle_title')?.textContent || doc.title || '').trim();
+        if (title) refreshRuntimeState({ courseTitle: title, classId });
+        const target = findNextByCourseLinks(doc, false);
+        if (target?.url) {
+          const nextId = getLessonIdFromUrl(target.url);
+          refreshRuntimeState({ nextLessonId: nextId });
+          appendLog(nextId ? `详情页解析到下一课时 ${nextId}` : '详情页解析到下一课时');
+        }
+        return target;
       } catch (_) {
         return null;
       }
@@ -382,6 +546,7 @@
       if (isNextPending() || now - lastAttemptAt < 6000) return;
       lastAttemptAt = now;
       setNextPending(true);
+      appendLog('检测到视频完成，寻找下一节');
 
       const delays = [0, 500, 1500, 3000];
       let clicked = false;
@@ -400,6 +565,7 @@
                 clicked = true;
                 return;
               }
+              appendLog('未找到下一节入口');
               setNextPending(false);
             });
           }
@@ -480,6 +646,10 @@
         if (!completionDialogRe.test(text)) continue;
         const btn = findConfirmButton(dialog);
         if (btn) {
+          if (dialog.getAttribute('data-class-attender-dismissed') !== '1') {
+            dialog.setAttribute('data-class-attender-dismissed', '1');
+            appendLog('自动确认播放完成弹框');
+          }
           try { btn.click(); } catch (_) {}
         }
       }
@@ -493,8 +663,10 @@
 
   function init() {
     if (!isCourseLearnPage()) return;
+    refreshRuntimeState();
     // 尽早伪装为前台可见状态，并派发相应事件
     injectForegroundSpoofing();
+    appendLog(`插件启动：课程 ${runtimeState.classId || '-'}，课时 ${runtimeState.lessonId || '-'}`);
     // 静音
     muteTab();
     // 自动播放
