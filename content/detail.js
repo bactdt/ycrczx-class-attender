@@ -8,7 +8,7 @@
 
     const btn = document.createElement('button');
     btn.id = 'class-attender-batch-play';
-    btn.textContent = '批量播放（跳过已完成）';
+    btn.textContent = '继续学习';
     Object.assign(btn.style, {
       position: 'fixed',
       right: '16px',
@@ -22,7 +22,7 @@
       cursor: 'pointer',
       boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
     });
-    btn.addEventListener('click', onBatchPlayClick);
+    btn.addEventListener('click', onContinueStudyClick);
     document.body.appendChild(btn);
   }
 
@@ -70,6 +70,10 @@
     }
     // onclick 内联
     const onclick = el.getAttribute && el.getAttribute('onclick');
+    if (onclick) {
+      const kpsMatch = onclick.match(/kps\(\s*(\d+)\s*,\s*(\d+)\s*\)/);
+      if (kpsMatch) urls.add(normalizeUrl(`/video/courseLearnPage?id=${kpsMatch[1]}&&classId=${kpsMatch[2]}`));
+    }
     if (onclick && /courseLearnPage/.test(onclick)) {
       extractUrlsFromHtml(onclick).forEach(u => urls.add(u));
     }
@@ -87,6 +91,7 @@
       '.course-item',
       '.catalog-item',
       '[onclick*="courseLearnPage"]',
+      '[onclick*="kps("]',
       '[data-href*="courseLearnPage"]',
       '[data-url*="courseLearnPage"]',
       'a[href*="/video/courseLearnPage"]',
@@ -107,31 +112,37 @@
       const m = text.match(/(\d+)\s*%/);
       if (m && Number(m[1]) >= 100) return true;
     }
+    const text = (container.textContent || '').replace(/\s+/g, '');
+    if (/已完成|学习完成|已学完|100\s*%/.test(text)) return true;
     return false;
   }
 
-  async function onBatchPlayClick() {
+  function openSingleLesson(url) {
+    if (!url) return false;
+    try {
+      chrome.runtime.sendMessage({ type: 'OPEN_URL_IN_TAB', url });
+    } catch (_) {
+      try { window.open(url, '_blank'); } catch (__) {}
+    }
+    return true;
+  }
+
+  async function onContinueStudyClick() {
     const elements = collectLessonElements();
     let clickable = elements.filter(el => !isCompletedFor(el));
     // 如果全部被过滤（可能误判），则不做过滤直接尝试
     if (elements.length > 0 && clickable.length === 0) clickable = elements.slice();
 
     if (clickable.length > 0) {
-      for (let i = 0; i < clickable.length; i += 1) {
-        const el = clickable[i];
-        // 优先直接点击（页面可能绑定了打开逻辑）
-        try { el.click(); } catch (_) {}
-        // 同时尝试从元素中提取直达链接并打开（避免点击无效）
-        const urls = getLessonUrlsFromElement(el);
-        for (const href of urls) {
-          try { chrome.runtime.sendMessage({ type: 'OPEN_URL_IN_TAB', url: href }); } catch (_) {
-            try { window.open(href, '_blank'); } catch (__) {}
-          }
-        }
-        // eslint-disable-next-line no-await-in-loop
-        await new Promise(r => setTimeout(r, 350));
+      const first = clickable[0];
+      const urls = getLessonUrlsFromElement(first);
+      if (urls.length && openSingleLesson(urls[0])) return;
+      try {
+        first.click();
+        return;
+      } catch (_) {
+        // continue to HTML fallback
       }
-      return;
     }
 
     // 进一步：直接从页面 HTML 中抓取所有播放链接
@@ -144,24 +155,14 @@
         const html2 = document.documentElement ? document.documentElement.outerHTML : (document.body ? document.body.innerHTML : '');
         const urls2 = extractUrlsFromHtml(html2);
         if (urls2.length) {
-          urls2.forEach(href => {
-            try { chrome.runtime.sendMessage({ type: 'OPEN_URL_IN_WINDOW', url: normalizeUrl(href) }); } catch (_) {
-              try { window.open(normalizeUrl(href), '_blank'); } catch (__) {}
-            }
-          });
+          openSingleLesson(normalizeUrl(urls2[0]));
         } else {
           alert('未找到课时入口（.section 或播放链接）。');
         }
       }, 1200);
       return;
     }
-    for (const href of uniqueUrls) {
-      try { chrome.runtime.sendMessage({ type: 'OPEN_URL_IN_TAB', url: href }); } catch (_) {
-        try { window.open(href, '_blank'); } catch (__) {}
-      }
-      // eslint-disable-next-line no-await-in-loop
-      await new Promise(r => setTimeout(r, 350));
-    }
+    openSingleLesson(uniqueUrls[0]);
   }
 
   function init() {
@@ -175,5 +176,4 @@
     init();
   }
 })();
-
 

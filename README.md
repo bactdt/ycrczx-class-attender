@@ -1,9 +1,9 @@
 ## Class Attender（Chrome / Edge 扩展）
 
-在课程详情页注入“批量播放”按钮，批量打开并自动播放课程视频；在播放页自动点击播放并静音标签页。
+在课程详情页注入“继续学习”按钮，打开第一个未完成课时；在播放页自动点击播放、静音并顺序续学。
 
 ### 与原版差异
-本仓库基于 `cxl086/ycrczx-class-attender` 调整，当前版本为 `1.0.10`。相对原版主要差异如下：
+本仓库基于 `cxl086/ycrczx-class-attender` 调整，当前版本为 `1.0.11`。相对原版主要差异如下：
 
 - 新增适配 `https://ycrczx.com/*` 和 `https://yctc.ycrczx.com/*`，课程详情页和播放页会在这些域名下注入脚本。
 - 保留原 `https://www.ycrczx.com/*` 支持，原站点仍可使用。
@@ -14,6 +14,7 @@
 - 倍速控件扩展为状态面板，展示当前课程、当前/下一课时、解析到的目录和最近执行日志。
 - 学习中心页新增课程面板，监听 `getClassNameDataQh` 返回结果，解析未完成课程并支持打开第一门或批量打开未完成课程。
 - 学习中心捕获到的未完成课程会保存为队列；打开课程或跨课程续学时，会优先进入该课程第一个未完成课时，而不是从第一节重刷。
+- 课程详情页按钮从批量打开课时调整为“继续学习”，只打开一个未完成课时，避免一次弹出多个窗口。
 
 ### 1. 重要声明
 - 本项目仅供学习研究使用，不得用于任何商业化用途。
@@ -24,9 +25,8 @@
 
 ### 3. 功能概述
 - 课程详情页（`https://ycrczx.com/zzpx/courseDetail/{id}`、`https://www.ycrczx.com/zzpx/courseDetail/{id}`、`https://yctc.ycrczx.com/zzpx/courseDetail/{id}`）：
-  - 页面右下角注入“批量播放”按钮。
-  - 点击后优先逐个点击页面中的 `.section`（等价 `$(".section").each(function(){ $(this).click(); })`）。
-  - 若未匹配到 `.section`，则逐个在“新窗口”中打开对应的播放页链接（后台创建窗口，失败时回退至新标签页）。
+  - 页面右下角注入“继续学习”按钮。
+  - 点击后优先打开第一个未完成课时；若无法判断进度，则打开第一个可识别课时。
 - 播放页（`https://ycrczx.com/video/courseLearnPage?id=...&&classId=...`、`https://www.ycrczx.com/video/courseLearnPage?id=...&&classId=...`、`https://yctc.ycrczx.com/video/courseLearnPage?id=...&&classId=...`）：
   - 自动点击 `.vjs-big-play-button` 开始播放。
   - 强制播放：直接调用 `video.play()`；并在自动播放策略下将 `muted=true`、`volume=0`。
@@ -64,12 +64,12 @@
 #### 5.1 登录站点
 - 访问 `https://ycrczx.com/`、`https://www.ycrczx.com/` 或 `https://yctc.ycrczx.com/`，保持已登录状态（播放页通常需要登录）。
 
-#### 5.2 在课程详情页批量打开
+#### 5.2 在课程详情页继续学习
 1. 打开课程详情页，例如：`https://ycrczx.com/zzpx/courseDetail/2929`、`https://www.ycrczx.com/zzpx/courseDetail/4835` 或 `https://yctc.ycrczx.com/zzpx/courseDetail/4835`。
-2. 页面右下角出现“批量播放”按钮。
-3. 点击“批量播放”：
-   - 优先逐个点击 `.section` 项；若站点会自动在新窗口/新标签打开，则会依站点行为执行。
-   - 若没匹配到 `.section`，扩展会逐个在新窗口中打开每个课时播放页（做了节流，减少弹窗拦截风险）。
+2. 页面右下角出现“继续学习”按钮。
+3. 点击“继续学习”：
+   - 优先打开第一个未完成课时；
+   - 若没匹配到进度信息，则打开第一个可识别的课时播放页。
 4. 如弹窗被浏览器拦截，请在地址栏右侧允许此站点的弹窗。
 
 #### 5.3 在播放页自动播放与静音
@@ -81,10 +81,10 @@
   - 视频结束后尝试自动进入下一节（若页面没有“下一节”按钮，可能无法自动跳转）。
 
 ### 6. 常见问题（FAQ）
-- 看不到“批量播放”按钮？
+- 看不到“继续学习”按钮？
   - 刷新页面，确认 URL 形如 `.../zzpx/courseDetail/{id}`。
   - 确认扩展已加载并启用。
-- 点击“批量播放”无反应？
+- 点击“继续学习”无反应？
   - 检查浏览器是否拦截了弹窗；在地址栏允许本域名弹窗。
   - 页面目录可能是动态加载，先展开或滚动到课程目录区域再点击。
 - 播放页点击播放但进度不动？
@@ -103,7 +103,7 @@ classAttender/
 ├─ manifest.json           # 扩展清单（MV3）
 ├─ background.js           # 后台：静音、创建新窗口
 ├─ content/
-│  ├─ detail.js            # 课程详情页：按钮注入、批量打开
+│  ├─ detail.js            # 课程详情页：按钮注入、继续学习
 │  ├─ learn.js             # 播放页：自动播放、静音、下一节
 │  └─ study_center.js      # 学习中心页：课程列表解析和启动学习
 ├─ scripts/
