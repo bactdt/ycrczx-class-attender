@@ -100,6 +100,19 @@
     };
   }
 
+  function isLessonCompleted(el) {
+    const text = getText(el);
+    const percent = text.match(/(\d+)\s*%/);
+    if (percent && Number(percent[1]) >= 100) return true;
+    return /已完成|学习完成|已学完|100\s*%/.test(text);
+  }
+
+  function collectLessonTargets(doc) {
+    return Array.from(doc.querySelectorAll('.section, [onclick*="kps("], a[href*="courseLearnPage"], [onclick*="courseLearnPage"]'))
+      .map(el => ({ el, target: extractCourseTarget(el) }))
+      .filter(item => item.target.url && /courseLearnPage/.test(item.target.url));
+  }
+
   function parseCoursesFromHtml(html) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const items = Array.from(doc.querySelectorAll('li'));
@@ -161,10 +174,9 @@
       if (!res.ok) return normalizeUrl(`/zzpx/courseDetail/${classId}`);
       const html = await res.text();
       const doc = new DOMParser().parseFromString(html, 'text/html');
-      const first = Array.from(doc.querySelectorAll('.section, [onclick*="kps("], a[href*="courseLearnPage"], [onclick*="courseLearnPage"]'))
-        .map(el => extractCourseTarget(el))
-        .find(item => item.url && /courseLearnPage/.test(item.url));
-      return first?.url || normalizeUrl(`/zzpx/courseDetail/${classId}`);
+      const lessons = collectLessonTargets(doc);
+      const lesson = lessons.find(item => !isLessonCompleted(item.el)) || lessons[0];
+      return lesson?.target.url || normalizeUrl(`/zzpx/courseDetail/${classId}`);
     } catch (_) {
       return normalizeUrl(`/zzpx/courseDetail/${classId}`);
     }

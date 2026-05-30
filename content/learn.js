@@ -511,6 +511,13 @@
       return items;
     };
 
+    const isLessonCompleted = (el) => {
+      const text = getText(el);
+      const percent = text.match(/(\d+)\s*%/);
+      if (percent && Number(percent[1]) >= 100) return true;
+      return /已完成|学习完成|已学完|100\s*%/.test(text);
+    };
+
     const findNextByCourseLinks = (root = document, requireVisible = true) => {
       const currentId = getQueryParam('id');
       const items = collectCourseLinkItems(root, requireVisible);
@@ -572,10 +579,10 @@
         const doc = new DOMParser().parseFromString(html, 'text/html');
         const title = (doc.querySelector('.u-coursetitle_title')?.textContent || doc.title || '').trim();
         const items = collectCourseLinkItems(doc, false);
-        const target = items[0] || null;
+        const target = items.find(item => !isLessonCompleted(item.el)) || items[0] || null;
         if (target?.url) {
           const lessonId = getLessonIdFromUrl(target.url);
-          appendLog(title ? `下一门课程：${title}，首课时 ${lessonId || '-'}` : `下一门首课时 ${lessonId || '-'}`);
+          appendLog(title ? `下一门课程：${title}，进入课时 ${lessonId || '-'}` : `下一门进入课时 ${lessonId || '-'}`);
         }
         return target;
       } catch (_) {
