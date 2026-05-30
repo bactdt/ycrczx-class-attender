@@ -51,6 +51,23 @@
     installDialogOverrides();
     setInterval(installDialogOverrides, 1000);
 
+    const isProceedingNext = () => {
+      try {
+        return document.documentElement && document.documentElement.getAttribute('data-class-attender-next-pending') === '1';
+      } catch (_) {
+        return false;
+      }
+    };
+    const isVideoComplete = (video) => {
+      try {
+        const duration = Number(video.duration);
+        const currentTime = Number(video.currentTime);
+        return video.ended || (Number.isFinite(duration) && duration > 0 && Number.isFinite(currentTime) && duration - currentTime <= 0.4);
+      } catch (_) {
+        return false;
+      }
+    };
+
     // 劫持 HTMLMediaElement.prototype.pause，阻止被动暂停
     try {
       const proto = HTMLMediaElement.prototype;
@@ -59,6 +76,9 @@
         value: function () {
           try {
             if (this && this.tagName === 'VIDEO') {
+              if (isProceedingNext() || isVideoComplete(this)) {
+                return _pause.apply(this, arguments);
+              }
               this.muted = true;
               try { this.play(); } catch (_) {}
               return;
@@ -89,6 +109,7 @@
       try {
         const v = e.target;
         if (v && v.tagName === 'VIDEO') {
+          if (isProceedingNext() || isVideoComplete(v)) return;
           v.muted = true;
           v.play().catch(() => {});
         }
@@ -98,4 +119,3 @@
     // ignore
   }
 })();
-

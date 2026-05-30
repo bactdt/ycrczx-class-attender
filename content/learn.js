@@ -18,6 +18,33 @@
     return false;
   }
 
+  const NEXT_PENDING_ATTR = 'data-class-attender-next-pending';
+  function setNextPending(active) {
+    try {
+      const root = document.documentElement;
+      if (!root) return;
+      if (active) root.setAttribute(NEXT_PENDING_ATTR, '1');
+      else root.removeAttribute(NEXT_PENDING_ATTR);
+    } catch (_) {}
+  }
+  function isNextPending() {
+    try {
+      return document.documentElement && document.documentElement.getAttribute(NEXT_PENDING_ATTR) === '1';
+    } catch (_) {
+      return false;
+    }
+  }
+  function isVideoComplete(video) {
+    if (!video) return false;
+    try {
+      const duration = Number(video.duration);
+      const currentTime = Number(video.currentTime);
+      return video.ended || (Number.isFinite(duration) && duration > 0 && Number.isFinite(currentTime) && duration - currentTime <= 0.4);
+    } catch (_) {
+      return false;
+    }
+  }
+
   const RATE_STORAGE_KEY = 'class_attender_rate';
   function getTargetRate() {
     const v = Number(localStorage.getItem(RATE_STORAGE_KEY) || '2');
@@ -146,6 +173,7 @@
   async function forcePlayVideo() {
     const video = document.querySelector('video');
     if (!video) return false;
+    if (isNextPending() || isVideoComplete(video)) return false;
     try {
       // 设置静音，避免未授权播放被拦截
       video.muted = true;
@@ -185,27 +213,168 @@
   }
 
   function autoProceedNextOnEnded() {
-    const video = document.querySelector('video');
-    if (!video) return;
-    video.addEventListener('ended', () => {
-      // 页面可能有“下一节/下一集”按钮，尝试点击
-      const nextSelectors = [
+    const boundVideos = new WeakSet();
+    let lastAttemptAt = 0;
+
+    const normalizeUrl = (url) => {
+      if (!url) return null;
+      try { return new URL(url, location.href).href; } catch (_) { return null; }
+    };
+
+    const isVisible = (el) => {
+      try {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      } catch (_) {
+        return true;
+      }
+    };
+
+    const isDisabled = (el) => {
+      const className = String(el.className || '');
+      return Boolean(el.disabled || el.getAttribute('disabled') !== null || el.getAttribute('aria-disabled') === 'true' || /disabled|layui-disabled/.test(className));
+    };
+
+    const getText = (el) => {
+      return [
+        el.textContent || '',
+        el.value || '',
+        el.getAttribute('aria-label') || '',
+        el.getAttribute('title') || '',
+        el.getAttribute('class') || ''
+      ].join(' ').replace(/\s+/g, ' ').trim();
+    };
+
+    const extractCourseLearnUrl = (el) => {
+      const attrs = ['href', 'data-href', 'data-url'];
+      for (const key of attrs) {
+        const value = el.getAttribute && el.getAttribute(key);
+        if (value && /courseLearnPage/.test(value)) return normalizeUrl(value);
+      }
+      const html = (el.outerHTML || '') + ' ' + (el.getAttribute && el.getAttribute('onclick') || '');
+      const absMatch = html.match(/https?:\/\/[^"'\s]*\/video\/courseLearnPage\?[^"'\s]*/);
+      if (absMatch) return normalizeUrl(absMatch[0]);
+      const relMatch = html.match(/\/video\/courseLearnPage\?[^"'\s]*/);
+      return relMatch ? normalizeUrl(relMatch[0]) : null;
+    };
+
+    const clickNext = (el, url) => {
+      if (!el || isDisabled(el) || !isVisible(el)) return false;
+      setNextPending(true);
+      const before = location.href;
+      try { el.scrollIntoView({ block: 'center', inline: 'center' }); } catch (_) {}
+      try { el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, view: window })); } catch (_) {}
+      try { el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window })); } catch (_) {}
+      try { el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window })); } catch (_) {}
+      try { el.click(); } catch (_) {}
+      if (url && url !== before) {
+        setTimeout(() => {
+          try {
+            if (location.href === before) location.href = url;
+          } catch (_) {}
+        }, 800);
+      }
+      setTimeout(() => setNextPending(false), 5000);
+      return true;
+    };
+
+    const findNextByButtonText = () => {
+      const nextTextRe = /(下一节|下一课|下一集|下一章|下一讲|下一个|继续学习|继续播放|下一)/;
+      const rejectTextRe = /(上一|上一个|返回|重播|重新|回放|目录)/;
+      const selectors = [
         'a.next',
         'button.next',
-        'a[aria-label*="下一"], button[aria-label*="下一"]'
+        '[class*="next"]',
+        '[aria-label*="下一"]',
+        '[title*="下一"]',
+        'a',
+        'button'
       ];
-      for (const sel of nextSelectors) {
-        const el = document.querySelector(sel);
-        if (el) { el.click(); return; }
+      const candidates = Array.from(new Set(selectors.map(s => Array.from(document.querySelectorAll(s))).flat()));
+      return candidates.find((el) => {
+        if (!isVisible(el) || isDisabled(el)) return false;
+        const text = getText(el);
+        return nextTextRe.test(text) && !rejectTextRe.test(text);
+      });
+    };
+
+    const findNextByCourseLinks = () => {
+      const currentId = new URLSearchParams(location.search).get('id');
+      const selectors = [
+        'a[href*="courseLearnPage"]',
+        '[onclick*="courseLearnPage"]',
+        '[data-href*="courseLearnPage"]',
+        '[data-url*="courseLearnPage"]'
+      ];
+      const items = Array.from(new Set(selectors.map(s => Array.from(document.querySelectorAll(s))).flat()))
+        .map(el => ({ el, url: extractCourseLearnUrl(el) }))
+        .filter(item => item.url && isVisible(item.el) && !isDisabled(item.el));
+      if (items.length === 0) return null;
+
+      let index = -1;
+      if (currentId) {
+        index = items.findIndex(({ url }) => {
+          try { return new URL(url).searchParams.get('id') === currentId; } catch (_) { return false; }
+        });
       }
-      // 回退：遍历所有 a/button，基于文本匹配“下一”
-      const candidates = Array.from(document.querySelectorAll('a, button'));
-      for (const el of candidates) {
-        const text = (el.textContent || '').trim();
-        if (text.includes('下一')) { el.click(); return; }
+      if (index < 0) {
+        index = items.findIndex(({ el }) => Boolean(el.closest('.active, .current, .on, .selected, .playing, [class*="active"], [class*="current"]')));
       }
-      // 若没有明确“下一节”，可根据站点结构扩展：点击目录中下一个未学项
-    });
+      if (index < 0) return null;
+
+      for (let i = index + 1; i < items.length; i += 1) {
+        if (items[i].url !== location.href) return items[i];
+      }
+      return null;
+    };
+
+    const findNextTarget = () => {
+      const nextButton = findNextByButtonText();
+      if (nextButton) return { el: nextButton, url: extractCourseLearnUrl(nextButton) };
+      return findNextByCourseLinks();
+    };
+
+    const proceedToNext = () => {
+      const now = Date.now();
+      if (isNextPending() || now - lastAttemptAt < 6000) return;
+      lastAttemptAt = now;
+      setNextPending(true);
+
+      const delays = [0, 500, 1500, 3000];
+      let clicked = false;
+      delays.forEach((delay, idx) => {
+        setTimeout(() => {
+          if (clicked) return;
+          const target = findNextTarget();
+          if (target && clickNext(target.el, target.url)) {
+            clicked = true;
+            return;
+          }
+          if (idx === delays.length - 1) setNextPending(false);
+        }, delay);
+      });
+    };
+
+    const bindVideos = () => {
+      document.querySelectorAll('video').forEach((video) => {
+        if (boundVideos.has(video)) return;
+        boundVideos.add(video);
+        video.addEventListener('ended', proceedToNext);
+      });
+    };
+
+    const checkEndedVideos = () => {
+      bindVideos();
+      document.querySelectorAll('video').forEach((video) => {
+        if (isVideoComplete(video)) proceedToNext();
+      });
+    };
+
+    bindVideos();
+    const obs = new MutationObserver(bindVideos);
+    obs.observe(document.documentElement || document.body, { childList: true, subtree: true });
+    setInterval(checkEndedVideos, 1000);
   }
 
   function autoDismissCompletionDialogs() {
@@ -299,4 +468,3 @@
     init();
   }
 })();
-
