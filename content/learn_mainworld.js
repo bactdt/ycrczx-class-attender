@@ -60,9 +60,7 @@
     };
     const isVideoComplete = (video) => {
       try {
-        const duration = Number(video.duration);
-        const currentTime = Number(video.currentTime);
-        return video.ended || (Number.isFinite(duration) && duration > 0 && Number.isFinite(currentTime) && duration - currentTime <= 0.4);
+        return Boolean(video.ended);
       } catch (_) {
         return false;
       }

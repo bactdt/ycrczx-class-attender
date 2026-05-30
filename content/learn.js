@@ -36,13 +36,7 @@
   }
   function isVideoComplete(video) {
     if (!video) return false;
-    try {
-      const duration = Number(video.duration);
-      const currentTime = Number(video.currentTime);
-      return video.ended || (Number.isFinite(duration) && duration > 0 && Number.isFinite(currentTime) && duration - currentTime <= 0.4);
-    } catch (_) {
-      return false;
-    }
+    return Boolean(video.ended);
   }
 
   const runtimeState = {
@@ -674,7 +668,7 @@
     const checkEndedVideos = () => {
       bindVideos();
       document.querySelectorAll('video').forEach((video) => {
-        if (isVideoComplete(video)) proceedToNext();
+        if (video.ended) proceedToNext();
       });
     };
 

@@ -23,6 +23,16 @@
     try { return new URL(url, location.origin).href; } catch (_) { return ''; }
   }
 
+  function getClassIdFromUrl(url) {
+    if (!url) return '';
+    try {
+      const parsed = new URL(url, location.origin);
+      return parsed.searchParams.get('classId') || parsed.pathname.match(/\/zzpx\/courseDetail\/(\d+)/)?.[1] || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
   function getText(el) {
     return (el.textContent || '').replace(/\s+/g, ' ').trim();
   }
@@ -136,32 +146,57 @@
     } catch (_) {}
   }
 
-  function openCourse(course) {
-    if (!course?.url) {
+  async function resolveLaunchUrl(course) {
+    if (!course) return '';
+    if (course.url && /courseLearnPage/.test(course.url)) return course.url;
+
+    const classId = course.classId || getClassIdFromUrl(course.url || '');
+    if (!classId) return course.url || '';
+
+    try {
+      const res = await fetch(`${location.origin}/zzpx/courseDetail/${classId}`, {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+      if (!res.ok) return normalizeUrl(`/zzpx/courseDetail/${classId}`);
+      const html = await res.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const first = Array.from(doc.querySelectorAll('.section, [onclick*="kps("], a[href*="courseLearnPage"], [onclick*="courseLearnPage"]'))
+        .map(el => extractCourseTarget(el))
+        .find(item => item.url && /courseLearnPage/.test(item.url));
+      return first?.url || normalizeUrl(`/zzpx/courseDetail/${classId}`);
+    } catch (_) {
+      return normalizeUrl(`/zzpx/courseDetail/${classId}`);
+    }
+  }
+
+  async function openCourse(course) {
+    if (!course || (!course.url && !course.classId)) {
       appendLog('课程缺少可打开的链接');
       return;
     }
     try {
-      localStorage.setItem('class_attender_active_class_id', course.classId || '');
+      localStorage.setItem('class_attender_active_class_id', course.classId || getClassIdFromUrl(course.url || '') || '');
     } catch (_) {}
-    appendLog(`打开课程：${course.title}`);
+    const launchUrl = await resolveLaunchUrl(course);
+    appendLog(`打开课程：${course.title}${launchUrl === course.url ? '' : '（首课时）'}`);
     try {
-      chrome.runtime.sendMessage({ type: 'OPEN_URL_IN_TAB', url: course.url });
+      chrome.runtime.sendMessage({ type: 'OPEN_URL_IN_TAB', url: launchUrl });
     } catch (_) {
-      window.open(course.url, '_blank');
+      window.open(launchUrl, '_blank');
     }
   }
 
-  function openFirstUnfinished() {
+  async function openFirstUnfinished() {
     const course = state.courses.find(item => !item.completed) || state.courses[0];
     if (!course) {
       appendLog('暂无课程，请先切换未学习/正在学习标签或点击读取当前列表');
       return;
     }
-    openCourse(course);
+    await openCourse(course);
   }
 
-  function openAllUnfinished() {
+  async function openAllUnfinished() {
     const courses = state.courses.filter(item => !item.completed);
     if (!courses.length) {
       appendLog('暂无未完成课程');
