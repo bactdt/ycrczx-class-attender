@@ -1,6 +1,14 @@
-## Class Attender（Chrome 扩展）
+## Class Attender（Chrome / Edge 扩展）
 
 在课程详情页注入“批量播放”按钮，批量打开并自动播放课程视频；在播放页自动点击播放并静音标签页。
+
+### 与原版差异
+本仓库基于 `cxl086/ycrczx-class-attender` 调整，当前版本为 `1.0.1`。相对原版主要差异如下：
+
+- 新增适配 `https://yctc.ycrczx.com/*`，课程详情页和播放页会在该域名下注入脚本。
+- 保留原 `https://www.ycrczx.com/*` 支持，原站点仍可使用。
+- 调整打包脚本，生成的 `dist/class-attender.zip` 会把 `manifest.json` 放在 ZIP 根目录，适合 Edge / Chromium 扩展包结构。
+- 仓库内附带已打包文件 `dist/class-attender.zip`，可下载后解压加载，或用于扩展后台上传。
 
 ### 1. 重要声明
 - 本项目仅供学习研究使用，不得用于任何商业化用途。
@@ -23,21 +31,22 @@
 
 ### 4. 安装与加载
 #### 4.1 前置要求
-- Chrome 114+（Manifest V3）。
-- 已开启“开发者模式”：Chrome → 扩展程序 → 右上角“开发者模式”。
+- Microsoft Edge 或 Chrome 114+（Manifest V3）。
+- 已开启“开发人员模式”：Edge / Chrome → 扩展程序 → 右上角“开发人员模式”。
 
 #### 4.2 方式一：加载已解压的扩展（推荐调试）
 1. 下载/克隆本项目。
-2. Chrome → 扩展程序 → 加载已解压的扩展。
-3. 选择本项目根目录：`/Users/chenxiaoliang/playground/classAttender`。
+2. 打开 `edge://extensions` 或 `chrome://extensions`。
+3. 点击“加载解压缩的扩展”。
+4. 选择项目根目录，或选择执行 `npm run build` 后生成的 `dist/src` 目录。
 
 #### 4.3 方式二：打包为 ZIP 后再加载
 1. 在项目根目录执行：
    ```bash
    npm run build
    ```
-2. 生成的压缩包位于：`/Users/chenxiaoliang/playground/classAttender/dist/class-attender.zip`。
-3. 解压后，Chrome → 扩展程序 → 加载已解压的扩展，选择解压后的 `dist/src` 目录。
+2. 生成的压缩包位于：`dist/class-attender.zip`。
+3. 解压后，Edge / Chrome → 扩展程序 → 加载解压缩的扩展，选择解压后的目录。
 
 ### 5. 使用教程
 #### 5.1 登录站点
@@ -85,6 +94,8 @@ classAttender/
 │  └─ learn.js             # 播放页：自动播放、静音、下一节
 ├─ scripts/
 │  └─ package.sh           # 打包脚本：生成 dist/class-attender.zip
+├─ dist/
+│  └─ class-attender.zip   # 已打包扩展文件
 ├─ package.json            # npm 脚本（build/zip）
 └─ README.md               # 本说明文档
 ```
@@ -102,4 +113,3 @@ classAttender/
 - 协议链接：
   - 英文法律文本：`https://creativecommons.org/licenses/by-nc/4.0/legalcode`
   - 中文介绍（非官方译文）：`https://creativecommons.org/licenses/by-nc/4.0/deed.zh-Hans`
-
