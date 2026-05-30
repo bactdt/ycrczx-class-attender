@@ -27,6 +27,30 @@
     });
     try { Object.defineProperty(document, 'onvisibilitychange', { set() {}, get() { return null; } }); } catch (_) {}
 
+    const completionDialogRe = /(?:播放|视频|学习|课程|课时|本节|本课).{0,16}(?:完成|结束|已完成|学完|看完)|(?:完成|结束|学完|看完).{0,16}(?:播放|视频|学习|课程|课时|本节|本课)/;
+    const shouldAutoAcceptDialog = (message) => {
+      const text = String(message || '').replace(/\s+/g, '');
+      return completionDialogRe.test(text);
+    };
+    const wrapDialog = (key, returnValue) => {
+      try {
+        const original = window[key];
+        if (typeof original !== 'function' || original.__classAttenderWrapped) return;
+        const wrapped = function (message) {
+          if (shouldAutoAcceptDialog(message)) return returnValue;
+          return original.apply(this, arguments);
+        };
+        Object.defineProperty(wrapped, '__classAttenderWrapped', { value: true });
+        Object.defineProperty(window, key, { value: wrapped, configurable: true, writable: true });
+      } catch (_) {}
+    };
+    const installDialogOverrides = () => {
+      wrapDialog('alert', undefined);
+      wrapDialog('confirm', true);
+    };
+    installDialogOverrides();
+    setInterval(installDialogOverrides, 1000);
+
     // 劫持 HTMLMediaElement.prototype.pause，阻止被动暂停
     try {
       const proto = HTMLMediaElement.prototype;
@@ -74,5 +98,4 @@
     // ignore
   }
 })();
-
 

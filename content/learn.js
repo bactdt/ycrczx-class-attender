@@ -208,6 +208,69 @@
     });
   }
 
+  function autoDismissCompletionDialogs() {
+    const completionDialogRe = /(?:播放|视频|学习|课程|课时|本节|本课).{0,24}(?:完成|结束|已完成|学完|看完)|(?:完成|结束|学完|看完).{0,24}(?:播放|视频|学习|课程|课时|本节|本课)/;
+    const okTextRe = /^(确定|确认|知道了|我知道了|完成|关闭|OK)$/i;
+    const dialogSelectors = [
+      '.layui-layer',
+      '.el-message-box',
+      '.ant-modal',
+      '.van-dialog',
+      '.modal',
+      '.dialog',
+      '.popup',
+      '[role="dialog"]'
+    ];
+    const primaryButtonSelectors = [
+      '.layui-layer-btn0',
+      '.el-button--primary',
+      '.ant-btn-primary',
+      '.van-button--default',
+      '.van-button--primary'
+    ];
+
+    const isVisible = (el) => {
+      try {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      } catch (_) {
+        return true;
+      }
+    };
+
+    const findConfirmButton = (dialog) => {
+      for (const selector of primaryButtonSelectors) {
+        const btn = dialog.querySelector(selector);
+        if (btn && !btn.disabled && isVisible(btn)) return btn;
+      }
+      const controls = Array.from(dialog.querySelectorAll('button, a, input[type="button"], input[type="submit"]'));
+      return controls.find((el) => {
+        if (el.disabled || !isVisible(el)) return false;
+        const text = (el.textContent || el.value || el.getAttribute('aria-label') || '').trim();
+        return okTextRe.test(text);
+      });
+    };
+
+    const tryDismiss = () => {
+      const dialogs = dialogSelectors.map(selector => Array.from(document.querySelectorAll(selector))).flat();
+      for (const dialog of dialogs) {
+        if (!isVisible(dialog)) continue;
+        const text = (dialog.textContent || '').replace(/\s+/g, '');
+        if (!completionDialogRe.test(text)) continue;
+        const btn = findConfirmButton(dialog);
+        if (btn) {
+          try { btn.click(); } catch (_) {}
+        }
+      }
+    };
+
+    tryDismiss();
+    const obs = new MutationObserver(tryDismiss);
+    obs.observe(document.documentElement || document.body, { childList: true, subtree: true });
+    setInterval(tryDismiss, 1000);
+  }
+
   function init() {
     if (!isCourseLearnPage()) return;
     // 尽早伪装为前台可见状态，并派发相应事件
@@ -225,6 +288,7 @@
     setInterval(() => applyRateToAll(getTargetRate()), 3000);
     bindHotkeys();
     createRateControl();
+    autoDismissCompletionDialogs();
     // 自动下一节（尽量）
     autoProceedNextOnEnded();
   }
@@ -235,5 +299,4 @@
     init();
   }
 })();
-
 
