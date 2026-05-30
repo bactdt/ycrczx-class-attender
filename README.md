@@ -1,9 +1,9 @@
 ## Class Attender（Chrome / Edge 扩展）
 
-在课程详情页注入“继续学习”按钮，打开第一个未完成课时；在播放页自动点击播放、静音并顺序续学。
+在课程详情页注入“继续学习”和“批量打卡”按钮；在播放页自动点击播放、静音并顺序续学。
 
 ### 与原版差异
-本仓库基于 `cxl086/ycrczx-class-attender` 调整，当前版本为 `1.0.11`。相对原版主要差异如下：
+本仓库基于 `cxl086/ycrczx-class-attender` 调整，当前版本为 `1.0.12`。相对原版主要差异如下：
 
 - 新增适配 `https://ycrczx.com/*` 和 `https://yctc.ycrczx.com/*`，课程详情页和播放页会在这些域名下注入脚本。
 - 保留原 `https://www.ycrczx.com/*` 支持，原站点仍可使用。
@@ -14,7 +14,7 @@
 - 倍速控件扩展为状态面板，展示当前课程、当前/下一课时、解析到的目录和最近执行日志。
 - 学习中心页新增课程面板，监听 `getClassNameDataQh` 返回结果，解析未完成课程并支持打开第一门或批量打开未完成课程。
 - 学习中心捕获到的未完成课程会保存为队列；打开课程或跨课程续学时，会优先进入该课程第一个未完成课时，而不是从第一节重刷。
-- 课程详情页按钮从批量打开课时调整为“继续学习”，只打开一个未完成课时，避免一次弹出多个窗口。
+- 课程详情页提供两个入口：“继续学习”只打开一个未完成课时；“批量打卡”最多打开 5 个未完成课时。
 
 ### 1. 重要声明
 - 本项目仅供学习研究使用，不得用于任何商业化用途。
@@ -25,8 +25,9 @@
 
 ### 3. 功能概述
 - 课程详情页（`https://ycrczx.com/zzpx/courseDetail/{id}`、`https://www.ycrczx.com/zzpx/courseDetail/{id}`、`https://yctc.ycrczx.com/zzpx/courseDetail/{id}`）：
-  - 页面右下角注入“继续学习”按钮。
+  - 页面右下角注入“继续学习”和“批量打卡(最多5个)”按钮。
   - 点击后优先打开第一个未完成课时；若无法判断进度，则打开第一个可识别课时。
+  - 批量打卡最多并发打开 5 个未完成课时，避免一次弹出过多窗口。
 - 播放页（`https://ycrczx.com/video/courseLearnPage?id=...&&classId=...`、`https://www.ycrczx.com/video/courseLearnPage?id=...&&classId=...`、`https://yctc.ycrczx.com/video/courseLearnPage?id=...&&classId=...`）：
   - 自动点击 `.vjs-big-play-button` 开始播放。
   - 强制播放：直接调用 `video.play()`；并在自动播放策略下将 `muted=true`、`volume=0`。
@@ -66,7 +67,7 @@
 
 #### 5.2 在课程详情页继续学习
 1. 打开课程详情页，例如：`https://ycrczx.com/zzpx/courseDetail/2929`、`https://www.ycrczx.com/zzpx/courseDetail/4835` 或 `https://yctc.ycrczx.com/zzpx/courseDetail/4835`。
-2. 页面右下角出现“继续学习”按钮。
+2. 页面右下角出现“继续学习”和“批量打卡(最多5个)”按钮。
 3. 点击“继续学习”：
    - 优先打开第一个未完成课时；
    - 若没匹配到进度信息，则打开第一个可识别的课时播放页。

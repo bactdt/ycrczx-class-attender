@@ -4,26 +4,40 @@
   }
 
   function ensureButton() {
-    if (document.getElementById('class-attender-batch-play')) return;
+    if (document.getElementById('class-attender-actions')) return;
 
-    const btn = document.createElement('button');
-    btn.id = 'class-attender-batch-play';
-    btn.textContent = '继续学习';
-    Object.assign(btn.style, {
+    const root = document.createElement('div');
+    root.id = 'class-attender-actions';
+    Object.assign(root.style, {
       position: 'fixed',
       right: '16px',
       bottom: '24px',
       zIndex: '2147483647',
-      padding: '10px 14px',
-      background: '#1677ff',
-      color: '#fff',
-      border: 'none',
-      borderRadius: '6px',
-      cursor: 'pointer',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+      display: 'flex',
+      gap: '8px',
+      alignItems: 'center'
     });
-    btn.addEventListener('click', onContinueStudyClick);
-    document.body.appendChild(btn);
+
+    const makeBtn = (id, text, background, onClick) => {
+      const btn = document.createElement('button');
+      btn.id = id;
+      btn.textContent = text;
+      Object.assign(btn.style, {
+        padding: '10px 14px',
+        background,
+        color: '#fff',
+        border: 'none',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+      });
+      btn.addEventListener('click', onClick);
+      return btn;
+    };
+
+    root.appendChild(makeBtn('class-attender-continue-study', '继续学习', '#1677ff', onContinueStudyClick));
+    root.appendChild(makeBtn('class-attender-batch-punch', '批量打卡(最多5个)', '#fa8c16', onBatchPunchClick));
+    document.body.appendChild(root);
   }
 
   function normalizeUrl(url) {
@@ -127,18 +141,31 @@
     return true;
   }
 
-  async function onContinueStudyClick() {
+  function getPlayableLessons() {
     const elements = collectLessonElements();
-    let clickable = elements.filter(el => !isCompletedFor(el));
-    // 如果全部被过滤（可能误判），则不做过滤直接尝试
-    if (elements.length > 0 && clickable.length === 0) clickable = elements.slice();
+    const source = elements.length ? elements : [];
+    let lessons = source.map(el => ({
+      el,
+      url: getLessonUrlsFromElement(el)[0],
+      completed: isCompletedFor(el)
+    })).filter(item => item.url);
 
-    if (clickable.length > 0) {
-      const first = clickable[0];
-      const urls = getLessonUrlsFromElement(first);
-      if (urls.length && openSingleLesson(urls[0])) return;
+    if (!lessons.length) {
+      const html = document.documentElement ? document.documentElement.outerHTML : (document.body ? document.body.innerHTML : '');
+      lessons = Array.from(new Set(extractUrlsFromHtml(html))).map(url => ({ el: null, url, completed: false }));
+    }
+
+    const unfinished = lessons.filter(item => !item.completed);
+    return unfinished.length ? unfinished : lessons;
+  }
+
+  async function onContinueStudyClick() {
+    const lessons = getPlayableLessons();
+    const firstLesson = lessons[0];
+    if (firstLesson?.url && openSingleLesson(firstLesson.url)) return;
+    if (firstLesson?.el) {
       try {
-        first.click();
+        firstLesson.el.click();
         return;
       } catch (_) {
         // continue to HTML fallback
@@ -165,6 +192,22 @@
     openSingleLesson(uniqueUrls[0]);
   }
 
+  function onBatchPunchClick() {
+    const lessons = getPlayableLessons().slice(0, 5);
+    if (!lessons.length) {
+      alert('未找到可打卡课时。');
+      return;
+    }
+    lessons.forEach((lesson, idx) => {
+      setTimeout(() => {
+        if (lesson.url) openSingleLesson(lesson.url);
+        else if (lesson.el) {
+          try { lesson.el.click(); } catch (_) {}
+        }
+      }, idx * 500);
+    });
+  }
+
   function init() {
     if (!isCourseDetailPage()) return;
     ensureButton();
@@ -176,4 +219,3 @@
     init();
   }
 })();
-

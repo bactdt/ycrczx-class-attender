@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Class Attender",
-  "version": "1.0.11",
-  "description": "在课程详情页添加批量播放按钮，课程播放页自动播放并静音。",
+  "version": "1.0.12",
+  "description": "在课程详情页添加继续学习/批量打卡按钮，课程播放页自动播放并静音。",
   "permissions": [
     "tabs",
     "windows",

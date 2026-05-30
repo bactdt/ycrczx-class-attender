@@ -535,6 +535,7 @@
       if (index < 0) return null;
 
       for (let i = index + 1; i < items.length; i += 1) {
+        if (isLessonCompleted(items[i].el)) continue;
         if (items[i].url !== location.href) return items[i];
       }
       return null;
