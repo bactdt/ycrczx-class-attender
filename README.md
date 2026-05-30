@@ -10,11 +10,11 @@
 - 在项目中提交 Issue 说明情况
 
 ### 3. 功能概述
-- 课程详情页（`https://www.ycrczx.com/zzpx/courseDetail/{id}`）：
+- 课程详情页（`https://www.ycrczx.com/zzpx/courseDetail/{id}`、`https://yctc.ycrczx.com/zzpx/courseDetail/{id}`）：
   - 页面右下角注入“批量播放”按钮。
   - 点击后优先逐个点击页面中的 `.section`（等价 `$(".section").each(function(){ $(this).click(); })`）。
   - 若未匹配到 `.section`，则逐个在“新窗口”中打开对应的播放页链接（后台创建窗口，失败时回退至新标签页）。
-- 播放页（`https://www.ycrczx.com/video/courseLearnPage?id=...&&classId=...`）：
+- 播放页（`https://www.ycrczx.com/video/courseLearnPage?id=...&&classId=...`、`https://yctc.ycrczx.com/video/courseLearnPage?id=...&&classId=...`）：
   - 自动点击 `.vjs-big-play-button` 开始播放。
   - 强制播放：直接调用 `video.play()`；并在自动播放策略下将 `muted=true`、`volume=0`。
   - 静音双保险：静音标签页 + 静音页面中所有 `video` 元素。
@@ -41,10 +41,10 @@
 
 ### 5. 使用教程
 #### 5.1 登录站点
-- 访问 `https://www.ycrczx.com/`，保持已登录状态（播放页通常需要登录）。
+- 访问 `https://www.ycrczx.com/` 或 `https://yctc.ycrczx.com/`，保持已登录状态（播放页通常需要登录）。
 
 #### 5.2 在课程详情页批量打开
-1. 打开课程详情页，例如：`https://www.ycrczx.com/zzpx/courseDetail/4835`。
+1. 打开课程详情页，例如：`https://www.ycrczx.com/zzpx/courseDetail/4835` 或 `https://yctc.ycrczx.com/zzpx/courseDetail/4835`。
 2. 页面右下角出现“批量播放”按钮。
 3. 点击“批量播放”：
    - 优先逐个点击 `.section` 项；若站点会自动在新窗口/新标签打开，则会依站点行为执行。
@@ -72,7 +72,7 @@
   - 不同课程模板按钮命名不同；请提供该页 DOM 结构（或截图中按钮的 HTML），我会增强选择器。
 
 ### 7. 权限说明
-- `host_permissions`: `https://www.ycrczx.com/*`（注入脚本的站点范围）。
+- `host_permissions`: `https://www.ycrczx.com/*`、`https://yctc.ycrczx.com/*`（注入脚本的站点范围）。
 - `permissions`: `tabs`, `windows`（静音标签页、在新窗口中打开播放页）。
 
 ### 8. 目录结构（关键文件）
@@ -102,5 +102,4 @@ classAttender/
 - 协议链接：
   - 英文法律文本：`https://creativecommons.org/licenses/by-nc/4.0/legalcode`
   - 中文介绍（非官方译文）：`https://creativecommons.org/licenses/by-nc/4.0/deed.zh-Hans`
-
 

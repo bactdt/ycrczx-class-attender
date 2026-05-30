@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Class Attender",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "在课程详情页添加批量播放按钮，课程播放页自动播放并静音。",
   "permissions": [
     "tabs",
@@ -9,7 +9,8 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://www.ycrczx.com/*"
+    "https://www.ycrczx.com/*",
+    "https://yctc.ycrczx.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -17,7 +18,8 @@
   "content_scripts": [
     {
       "matches": [
-        "https://www.ycrczx.com/video/courseLearnPage*"
+        "https://www.ycrczx.com/video/courseLearnPage*",
+        "https://yctc.ycrczx.com/video/courseLearnPage*"
       ],
       "js": ["content/learn_mainworld.js"],
       "run_at": "document_start",
@@ -26,14 +28,16 @@
     },
     {
       "matches": [
-        "https://www.ycrczx.com/zzpx/courseDetail/*"
+        "https://www.ycrczx.com/zzpx/courseDetail/*",
+        "https://yctc.ycrczx.com/zzpx/courseDetail/*"
       ],
       "js": ["content/detail.js"],
       "run_at": "document_idle"
     },
     {
       "matches": [
-        "https://www.ycrczx.com/video/courseLearnPage*"
+        "https://www.ycrczx.com/video/courseLearnPage*",
+        "https://yctc.ycrczx.com/video/courseLearnPage*"
       ],
       "js": ["content/learn.js"],
       "run_at": "document_start",
@@ -41,5 +45,3 @@
     }
   ]
 }
-
-
