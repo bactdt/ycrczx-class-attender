@@ -8,6 +8,7 @@
     courses: [],
     logs: []
   };
+  const COURSE_QUEUE_KEY = 'class_attender_course_queue';
 
   function appendLog(message) {
     const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
@@ -117,7 +118,22 @@
     const map = new Map(state.courses.map(course => [course.url || course.title, course]));
     courses.forEach(course => map.set(course.url || course.title, course));
     state.courses = Array.from(map.values());
+    saveCourseQueue();
     updatePanel();
+  }
+
+  function saveCourseQueue() {
+    const queue = state.courses
+      .filter(course => !course.completed && (course.url || course.classId))
+      .map(course => ({
+        title: course.title,
+        url: course.url,
+        classId: course.classId,
+        progressText: course.progressText || ''
+      }));
+    try {
+      localStorage.setItem(COURSE_QUEUE_KEY, JSON.stringify(queue));
+    } catch (_) {}
   }
 
   function openCourse(course) {
@@ -125,6 +141,9 @@
       appendLog('课程缺少可打开的链接');
       return;
     }
+    try {
+      localStorage.setItem('class_attender_active_class_id', course.classId || '');
+    } catch (_) {}
     appendLog(`打开课程：${course.title}`);
     try {
       chrome.runtime.sendMessage({ type: 'OPEN_URL_IN_TAB', url: course.url });

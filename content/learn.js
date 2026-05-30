@@ -53,6 +53,7 @@
     nextLessonId: '',
     lessonList: []
   };
+  const COURSE_QUEUE_KEY = 'class_attender_course_queue';
   let hasLoggedAutoPlay = false;
 
   function getPageQueryParam(key) {
@@ -69,6 +70,30 @@
     } catch (_) {
       return '';
     }
+  }
+
+  function getClassIdFromUrl(url) {
+    try {
+      const parsed = new URL(url, location.href);
+      return parsed.searchParams.get('classId') || parsed.pathname.match(/\/zzpx\/courseDetail\/(\d+)/)?.[1] || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function readCourseQueue() {
+    try {
+      const queue = JSON.parse(localStorage.getItem(COURSE_QUEUE_KEY) || '[]');
+      return Array.isArray(queue) ? queue : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function saveCourseQueue(queue) {
+    try {
+      localStorage.setItem(COURSE_QUEUE_KEY, JSON.stringify(queue || []));
+    } catch (_) {}
   }
 
   function refreshRuntimeState(extra = {}) {
@@ -472,8 +497,7 @@
       });
     };
 
-    const findNextByCourseLinks = (root = document, requireVisible = true) => {
-      const currentId = getQueryParam('id');
+    const collectCourseLinkItems = (root = document, requireVisible = true) => {
       const selectors = [
         'a[href*="courseLearnPage"]',
         '[onclick*="courseLearnPage"]',
@@ -485,12 +509,18 @@
       const items = Array.from(new Set(selectors.map(s => Array.from(root.querySelectorAll(s))).flat()))
         .map(el => ({ el, url: extractCourseLearnUrl(el) }))
         .filter(item => item.url && (!requireVisible || isVisible(item.el)) && !isDisabled(item.el));
-      if (items.length === 0) return null;
       const lessonIds = Array.from(new Set(items.map(item => getLessonIdFromUrl(item.url)).filter(Boolean)));
       if (lessonIds.length) {
         runtimeState.lessonList = lessonIds;
         updatePanelUI();
       }
+      return items;
+    };
+
+    const findNextByCourseLinks = (root = document, requireVisible = true) => {
+      const currentId = getQueryParam('id');
+      const items = collectCourseLinkItems(root, requireVisible);
+      if (items.length === 0) return null;
 
       let index = -1;
       if (currentId) {
@@ -535,6 +565,61 @@
       }
     };
 
+    const findFirstLessonFromCourseDetail = async (classId) => {
+      if (!classId) return null;
+      appendLog(`读取下一门课程详情 ${classId}`);
+      try {
+        const res = await fetch(`${location.origin}/zzpx/courseDetail/${classId}`, {
+          credentials: 'include',
+          cache: 'no-store'
+        });
+        if (!res.ok) return null;
+        const html = await res.text();
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const title = (doc.querySelector('.u-coursetitle_title')?.textContent || doc.title || '').trim();
+        const items = collectCourseLinkItems(doc, false);
+        const target = items[0] || null;
+        if (target?.url) {
+          const lessonId = getLessonIdFromUrl(target.url);
+          appendLog(title ? `下一门课程：${title}，首课时 ${lessonId || '-'}` : `下一门首课时 ${lessonId || '-'}`);
+        }
+        return target;
+      } catch (_) {
+        return null;
+      }
+    };
+
+    const goToNextCourseFromQueue = async () => {
+      const currentClassId = getQueryParam('classId');
+      const originalQueue = readCourseQueue();
+      const courseClassId = (course) => course.classId || getClassIdFromUrl(course.url || '');
+      const currentIndex = originalQueue.findIndex(course => courseClassId(course) === currentClassId);
+      const orderedQueue = currentIndex >= 0
+        ? originalQueue.slice(currentIndex + 1).concat(originalQueue.slice(0, currentIndex))
+        : originalQueue;
+      const queue = orderedQueue.filter(course => {
+        const classId = course.classId || getClassIdFromUrl(course.url || '');
+        return classId && classId !== currentClassId;
+      });
+      saveCourseQueue(originalQueue.filter(course => courseClassId(course) !== currentClassId));
+
+      if (!queue.length) {
+        appendLog('课程队列里没有下一门未完成课程');
+        return false;
+      }
+
+      for (const course of queue) {
+        const classId = course.classId || getClassIdFromUrl(course.url || '');
+        appendLog(`准备进入下一门课程：${course.title || classId}`);
+        const firstLesson = await findFirstLessonFromCourseDetail(classId);
+        if (firstLesson?.url && navigateToUrl(firstLesson.url)) return true;
+        if (course.url && navigateToUrl(course.url)) return true;
+      }
+
+      appendLog('未能打开下一门课程');
+      return false;
+    };
+
     const findNextTarget = () => {
       const nextButton = findNextByButtonText();
       if (nextButton) return { el: nextButton, url: extractCourseLearnUrl(nextButton) };
@@ -559,13 +644,18 @@
             return;
           }
           if (idx === delays.length - 1) {
-            findNextFromCourseDetail().then((detailTarget) => {
+            findNextFromCourseDetail().then(async (detailTarget) => {
               if (clicked) return;
               if (detailTarget && clickNext(detailTarget.el, detailTarget.url)) {
                 clicked = true;
                 return;
               }
-              appendLog('未找到下一节入口');
+              const movedToNextCourse = await goToNextCourseFromQueue();
+              if (movedToNextCourse) {
+                clicked = true;
+                return;
+              }
+              appendLog('未找到下一节入口，也没有下一门未完成课程');
               setNextPending(false);
             });
           }
