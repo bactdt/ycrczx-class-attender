@@ -220,6 +220,17 @@
       if (!url) return null;
       try { return new URL(url, location.href).href; } catch (_) { return null; }
     };
+    const getQueryParam = (key) => {
+      try {
+        return new URLSearchParams(location.search.replace(/&&/g, '&')).get(key);
+      } catch (_) {
+        return null;
+      }
+    };
+    const buildLearnUrl = (lessonId, classId) => {
+      if (!lessonId || !classId) return null;
+      return `${location.origin}/video/courseLearnPage?id=${lessonId}&&classId=${classId}`;
+    };
 
     const isVisible = (el) => {
       try {
@@ -253,14 +264,26 @@
         if (value && /courseLearnPage/.test(value)) return normalizeUrl(value);
       }
       const html = (el.outerHTML || '') + ' ' + (el.getAttribute && el.getAttribute('onclick') || '');
+      const kpsMatch = html.match(/kps\(\s*(\d+)\s*,\s*(\d+)\s*\)/);
+      if (kpsMatch) return buildLearnUrl(kpsMatch[1], kpsMatch[2]);
       const absMatch = html.match(/https?:\/\/[^"'\s]*\/video\/courseLearnPage\?[^"'\s]*/);
       if (absMatch) return normalizeUrl(absMatch[0]);
       const relMatch = html.match(/\/video\/courseLearnPage\?[^"'\s]*/);
       return relMatch ? normalizeUrl(relMatch[0]) : null;
     };
 
+    const navigateToUrl = (url) => {
+      if (!url || url === location.href) return false;
+      setNextPending(true);
+      try { location.href = url; } catch (_) { return false; }
+      setTimeout(() => setNextPending(false), 5000);
+      return true;
+    };
+
     const clickNext = (el, url) => {
-      if (!el || isDisabled(el) || !isVisible(el)) return false;
+      if (!el) return false;
+      if (el.ownerDocument !== document) return navigateToUrl(url);
+      if (isDisabled(el) || !isVisible(el)) return false;
       setNextPending(true);
       const before = location.href;
       try { el.scrollIntoView({ block: 'center', inline: 'center' }); } catch (_) {}
@@ -299,17 +322,19 @@
       });
     };
 
-    const findNextByCourseLinks = () => {
-      const currentId = new URLSearchParams(location.search).get('id');
+    const findNextByCourseLinks = (root = document, requireVisible = true) => {
+      const currentId = getQueryParam('id');
       const selectors = [
         'a[href*="courseLearnPage"]',
         '[onclick*="courseLearnPage"]',
         '[data-href*="courseLearnPage"]',
-        '[data-url*="courseLearnPage"]'
+        '[data-url*="courseLearnPage"]',
+        '[onclick*="kps("]',
+        '.section'
       ];
-      const items = Array.from(new Set(selectors.map(s => Array.from(document.querySelectorAll(s))).flat()))
+      const items = Array.from(new Set(selectors.map(s => Array.from(root.querySelectorAll(s))).flat()))
         .map(el => ({ el, url: extractCourseLearnUrl(el) }))
-        .filter(item => item.url && isVisible(item.el) && !isDisabled(item.el));
+        .filter(item => item.url && (!requireVisible || isVisible(item.el)) && !isDisabled(item.el));
       if (items.length === 0) return null;
 
       let index = -1;
@@ -327,6 +352,23 @@
         if (items[i].url !== location.href) return items[i];
       }
       return null;
+    };
+
+    const findNextFromCourseDetail = async () => {
+      const classId = getQueryParam('classId');
+      if (!classId) return null;
+      try {
+        const res = await fetch(`${location.origin}/zzpx/courseDetail/${classId}`, {
+          credentials: 'include',
+          cache: 'no-store'
+        });
+        if (!res.ok) return null;
+        const html = await res.text();
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        return findNextByCourseLinks(doc, false);
+      } catch (_) {
+        return null;
+      }
     };
 
     const findNextTarget = () => {
@@ -351,7 +393,16 @@
             clicked = true;
             return;
           }
-          if (idx === delays.length - 1) setNextPending(false);
+          if (idx === delays.length - 1) {
+            findNextFromCourseDetail().then((detailTarget) => {
+              if (clicked) return;
+              if (detailTarget && clickNext(detailTarget.el, detailTarget.url)) {
+                clicked = true;
+                return;
+              }
+              setNextPending(false);
+            });
+          }
         }, delay);
       });
     };
